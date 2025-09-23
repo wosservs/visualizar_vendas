@@ -8,6 +8,7 @@
     :root{
       --bg:#0b0f12; --ink:#e8edf2; --muted:#9fb0c0;
       --card:#12171d; --line:#1f2933; --orange:#ff7a00; --orange2:#ff9f3d;
+      --danger:#ff4747;
     }
     *{box-sizing:border-box}
     body{margin:0;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--ink)}
@@ -15,6 +16,7 @@
     .wrap{max-width:1400px;margin:0 auto;padding:14px 16px}
     h1{margin:0 0 8px;font-size:18px;letter-spacing:.3px}
     .badge{font-size:12px;color:#cfe3f7;background:#1f2933;border-radius:999px;padding:2px 8px;margin-left:8px}
+    .badge.err{background:var(--danger);color:#120909}
     .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .toolbar input,.toolbar select,.toolbar button{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
     .toolbar button{cursor:pointer;background:linear-gradient(90deg,var(--orange),var(--orange2));color:#2b1500;border:0;font-weight:700}
@@ -23,11 +25,10 @@
     thead th{position:sticky;top:64px;z-index:5;background:linear-gradient(180deg,var(--orange),var(--orange2));color:#1b1105;border:0;font-weight:800}
     th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:right;white-space:nowrap}
     th:first-child,td:first-child{position:sticky;left:0;background:var(--card);text-align:left;z-index:4}
-    th.left,td.left{position:sticky;left:0}
+    .left{position:sticky;left:0}
     .left2{position:sticky;left:80px}
     .left3{position:sticky;left:240px}
     .left4{position:sticky;left:540px}
-    .leftBlock th, .leftBlock td{background:var(--card)}
     tbody tr:nth-child(odd){background:#0f1419}
     .group{background:linear-gradient(90deg,rgba(255,122,0,.18),rgba(255,159,61,.12));color:#ffd7b0;font-weight:800}
     .subtotal{background:rgba(255,122,0,.08);font-weight:700}
@@ -70,25 +71,24 @@ let qs = <?= JSON.stringify(qs) ?>;
 
 function $(id){ return document.getElementById(id); }
 function setLoading(on){ $('card').classList.toggle('loading', !!on); }
+function showError(msg){ const b=$('badge'); b.classList.add('err'); b.textContent = 'erro: ' + msg; setLoading(false); }
 
 function render(data){
   lastData = data;
 
-  // Cabeçalho estilo planilha: colunas fixas + dias
   const left = data.leftHeaders || ['GRUA','REDE','LOCAL','TOTAL','ESTORNOS','BRINDES','POR ANDAR','CUSTO DIARIO'];
   const thead = $('thead');
 
   const leftHtml =
-    `<th class="leftBlock left">${left[0]}</th>`+
-    `<th class="leftBlock left2">${left[1]}</th>`+
-    `<th class="leftBlock left3">${left[2]}</th>`+
-    `<th class="leftBlock left4">${left[3]}</th>`+
+    `<th class="left">${left[0]}</th>`+
+    `<th class="left2">${left[1]}</th>`+
+    `<th class="left3">${left[2]}</th>`+
+    `<th class="left4">${left[3]}</th>`+
     `<th>${left[4]}</th><th>${left[5]}</th><th>${left[6]}</th><th>${left[7]}</th>`;
 
   const dayHeaders = data.datesLabel.map(d=>`<th>${d}</th>`).join('');
   thead.innerHTML = `<tr>${leftHtml}${dayHeaders}</tr>`;
 
-  // Corpo com quebra por LOCAL + subtotal por LOCAL
   const tbody = $('tbody');
   let html = '';
   let currentLocal = null;
@@ -97,10 +97,10 @@ function render(data){
   const renderSubtotal = (label) => {
     if (!label) return '';
     const tdsLeft =
-      `<td class="leftBlock left muted">Total</td>`+
-      `<td class="leftBlock left2 muted"></td>`+
-      `<td class="leftBlock left3 muted">${label}</td>`+
-      `<td class="leftBlock left4 muted"></td>`+
+      `<td class="left muted"><b>Total</b></td>`+
+      `<td class="left2 muted"></td>`+
+      `<td class="left3 muted">${label}</td>`+
+      `<td class="left4 muted"></td>`+
       `<td class="muted"></td><td class="muted"></td><td class="muted"></td><td class="muted"></td>`;
     const tdsDays = subTotals.map(v=>`<td>${BR.format(v)}</td>`).join('');
     return `<tr class="subtotal">${tdsLeft}${tdsDays}</tr>`;
@@ -108,7 +108,6 @@ function render(data){
 
   for (const r of data.rows){
     if (currentLocal !== r.local){
-      // fecha subtotal anterior
       if (currentLocal !== null){
         html += renderSubtotal(currentLocal);
         subTotals.fill(0);
@@ -117,15 +116,13 @@ function render(data){
       const spanCols = 8 + data.datesLabel.length;
       html += `<tr class="group"><td colspan="${spanCols}">${currentLocal}</td></tr>`;
     }
-
-    // acumula subtotal por dia
     for (let i=0;i<subTotals.length;i++){ subTotals[i] += (r.values[i]||0); }
 
     const leftCells =
-      `<td class="leftBlock left">${r.grua}</td>`+
-      `<td class="leftBlock left2">${r.rede||''}</td>`+
-      `<td class="leftBlock left3">${r.local||''}</td>`+
-      `<td class="leftBlock left4">${BR.format(r.totalPeriodo)}</td>`+
+      `<td class="left">${r.grua}</td>`+
+      `<td class="left2">${r.rede||''}</td>`+
+      `<td class="left3">${r.local||''}</td>`+
+      `<td class="left4">${BR.format(r.totalPeriodo)}</td>`+
       `<td>${r.estornos ? BR.format(r.estornos) : '—'}</td>`+
       `<td>${r.brindes ? BR.format(r.brindes) : '—'}</td>`+
       `<td>${r.porAndar ? BR.format(r.porAndar) : '—'}</td>`+
@@ -134,22 +131,19 @@ function render(data){
     const dayCells = r.values.map(v=>`<td>${v?BR.format(v):'—'}</td>`).join('');
     html += `<tr>${leftCells}${dayCells}</tr>`;
   }
-  // último subtotal
   html += renderSubtotal(currentLocal);
   tbody.innerHTML = html;
 
-  // Rodapé: total geral por dia
   const tfoot = $('tfoot');
   const leftFoot =
-    `<td class="leftBlock left"><b>Total geral</b></td>`+
-    `<td class="leftBlock left2"></td>`+
-    `<td class="leftBlock left3"></td>`+
-    `<td class="leftBlock left4">${BR.format(data.totals.reduce((a,b)=>a+b,0))}</td>`+
+    `<td class="left"><b>Total geral</b></td>`+
+    `<td class="left2"></td>`+
+    `<td class="left3"></td>`+
+    `<td class="left4">${BR.format(data.totals.reduce((a,b)=>a+b,0))}</td>`+
     `<td></td><td></td><td></td><td></td>`;
   const dayFoot = data.totals.map(v=>`<td><b>${BR.format(v)}</b></td>`).join('');
   tfoot.innerHTML = `<tr>${leftFoot}${dayFoot}</tr>`;
 
-  // Preenche select de gruas (1ª vez)
   const sel = $('grua');
   if (sel.options.length <= 1) {
     data.gruas.forEach(g => {
@@ -159,6 +153,7 @@ function render(data){
     });
   }
 
+  $('badge').classList.remove('err');
   $('badge').textContent = `${data.rows.length} gruas • ${data.datesLabel.length} dias`;
   setLoading(false);
 }
@@ -167,35 +162,32 @@ function fetchAndRender(){
   setLoading(true);
   const payload = { start:$('start').value||null, end:$('end').value||null, grua:$('grua').value||'ALL' };
   $('badge').textContent = 'carregando…';
-  google.script.run.withSuccessHandler(d=>{
-    if ((!$('start').value || !$('end').value) && d.dates?.length){
-      $('start').value = $('start').value || d.dates[0];
-      $('end').value   = $('end').value   || d.dates[d.dates.length-1];
-    }
-    render(d);
-  }).fetchGrid(payload);
+  google.script.run
+    .withSuccessHandler(d=>{
+      if ((!$('start').value || !$('end').value) && d.dates?.length){
+        $('start').value = $('start').value || d.dates[0];
+        $('end').value   = $('end').value   || d.dates[d.dates.length-1];
+      }
+      render(d);
+    })
+    .withFailureHandler(err=>{
+      showError(err?.message || 'Falha ao buscar dados.');
+      console.error(err);
+    })
+    .fetchGrid(payload);
 }
 
-// CSV do que está na tela
 $('csv').addEventListener('click', ()=>{
   if (!lastData) return;
   const L = lastData.leftHeaders || ['GRUA','REDE','LOCAL','TOTAL','ESTORNOS','BRINDES','POR ANDAR','CUSTO DIARIO'];
   const head = [...L, ...lastData.datesLabel];
   const rows = [head];
-
-  // reconstruir linhas (sem as linhas de grupo/subtotais)
   lastData.rows.forEach(r=>{
-    rows.push([
-      r.grua, r.rede||'', r.local||'',
-      r.totalPeriodo, r.estornos||0, r.brindes||0, r.porAndar||0, r.custoDiario||0,
-      ...r.values
-    ]);
+    rows.push([r.grua, r.rede||'', r.local||'', r.totalPeriodo, r.estornos||0, r.brindes||0, r.porAndar||0, r.custoDiario||0, ...r.values]);
   });
-
-  // rodapé (totais por dia)
   rows.push(['Total geral','','','', '', '', '', '', ...lastData.totals]);
 
-  const csv = rows.map(line => line.map(x=>{
+  const csv = rows.map(line=>line.map(x=>{
     if (typeof x === 'number') return x.toString().replace('.', ',');
     return `"${String(x).replace(/"/g,'""')}"`;
   }).join(';')).join('\n');
@@ -209,20 +201,26 @@ $('csv').addEventListener('click', ()=>{
 $('apply').addEventListener('click', fetchAndRender);
 
 // bootstrap
-google.script.run.withSuccessHandler(d=>{
-  if (d.dates?.length){
-    $('start').value = qs.start || d.dates[0];
-    $('end').value   = qs.end   || d.dates[d.dates.length-1];
-  }
-  render(d);
-  if (qs.grua){
-    const trySet = ()=>{
-      const opt = Array.from($('grua').options).find(o => o.value.toUpperCase() === qs.grua.toUpperCase());
-      if (opt){ $('grua').value = opt.value; fetchAndRender(); }
-    };
-    trySet(); setTimeout(trySet, 300);
-  }
-}).fetchGrid({});
+google.script.run
+  .withSuccessHandler(d=>{
+    if (d.dates?.length){
+      $('start').value = qs.start || d.dates[0];
+      $('end').value   = qs.end   || d.dates[d.dates.length-1];
+    }
+    render(d);
+    if (qs.grua){
+      const trySet = ()=>{
+        const opt = Array.from($('grua').options).find(o => o.value.toUpperCase() === qs.grua.toUpperCase());
+        if (opt){ $('grua').value = opt.value; fetchAndRender(); }
+      };
+      trySet(); setTimeout(trySet, 300);
+    }
+  })
+  .withFailureHandler(err=>{
+    showError(err?.message || 'Falha ao iniciar.');
+    console.error(err);
+  })
+  .fetchGrid({});
 </script>
 </body>
 </html>
