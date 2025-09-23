@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Detalhado – Dia a Dia</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root { --bg:#0b0f12; --card:#12171d; --ink:#e8edf2; --muted:#9fb0c0; --accent:#3ba9ff; --accent2:#67e8a5; }
+    * { box-sizing: border-box; }
+    body { margin:0; font: 14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial; background:var(--bg); color:var(--ink); }
+    header { position:sticky; top:0; z-index:10; background:linear-gradient(180deg, rgba(11,15,18,.95) 0%, rgba(11,15,18,.85) 100%); backdrop-filter: blur(6px); border-bottom:1px solid #1f2933; }
+    .wrap { max-width:1200px; margin:0 auto; padding:16px; }
+    h1 { margin:0 0 8px; font-size:18px; letter-spacing:.3px; }
+    .toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .toolbar input, .toolbar select, .toolbar button {
+      background:var(--card); color:var(--ink); border:1px solid #24303c; border-radius:8px; padding:8px 10px;
+    }
+    .toolbar button { cursor:pointer; background:linear-gradient(90deg, var(--accent), var(--accent2)); color:#041019; border:0; font-weight:600; }
+    .card { background:var(--card); border:1px solid #1f2933; border-radius:14px; padding:12px; margin:16px auto; max-width:1200px; }
+    table { width:100%; border-collapse:collapse; font-variant-numeric: tabular-nums; }
+    th, td { border-bottom:1px solid #1f2933; padding:8px 10px; text-align:right; }
+    th.sticky { position:sticky; top:60px; background:var(--card); z-index:5; }
+    th:first-child, td:first-child { text-align:left; position:sticky; left:0; background:var(--card); z-index:4; }
+    thead th { font-weight:700; color:#cfe3f7; }
+    tfoot td { font-weight:700; color:#cfe3f7; border-top:1px solid #2b3845; }
+    .muted { color:var(--muted); }
+    .badge { padding:2px 8px; border-radius:999px; background:#1f2933; color:#a8c7ff; font-size:12px; }
+    .grid { overflow:auto; max-height:70vh; }
+    .loading { opacity:.6; filter:grayscale(.1); }
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>DETALHADO GERAL – Dia a Dia <span id="badge" class="badge">carregando…</span></h1>
+    <div class="toolbar">
+      <label>De: <input type="date" id="start"></label>
+      <label>Até: <input type="date" id="end"></label>
+      <label>Grua:
+        <select id="grua">
+          <option value="ALL">Todas</option>
+        </select>
+      </label>
+      <button id="apply">Atualizar</button>
+      <button id="csv">Exportar CSV</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="card" class="card grid">
+    <table id="tbl">
+      <thead id="thead"></thead>
+      <tbody id="tbody"></tbody>
+      <tfoot id="tfoot"></tfoot>
+    </table>
+  </div>
+</main>
+
+<script>
+const BR = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+let lastData = null;
+let qs = <?= JSON.stringify(qs) ?>; // params vindos do doGet (start,end,grua)
+
+function $(id){ return document.getElementById(id); }
+
+function setLoading(on){
+  const card = $('card');
+  if (on) card.classList.add('loading'); else card.classList.remove('loading');
+}
+
+function render(data){
+  lastData = data;
+
+  // cabeçalho
+  const thead = $('thead');
+  const headCells = ['GRUA', ...data.datesLabel];
+  thead.innerHTML = '<tr>' + headCells.map(h=>`<th class="sticky">${h}</th>`).join('') + '</tr>';
+
+  // linhas
+  const tbody = $('tbody');
+  tbody.innerHTML = data.rows.map(r=>{
+    const cells = [ `<td>${r.grua}</td>` ].concat(r.values.map(v=>`<td>${BR.format(v)}</td>`));
+    return `<tr>${cells.join('')}</tr>`;
+  }).join('');
+
+  // rodapé (totais)
+  const tfoot = $('tfoot');
+  const totCells = ['Total', ...data.totals.map(v=>BR.format(v))];
+  tfoot.innerHTML = '<tr>' + totCells.map(t=>`<td>${t}</td>`).join('') + '</tr>';
+
+  // select de gruas (preenche só 1x)
+  const sel = $('grua');
+  if (sel.options.length <= 1) {
+    data.gruas.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g; opt.textContent = g;
+      sel.appendChild(opt);
+    });
+  }
+
+  // badge
+  const badge = $('badge');
+  const totalLinhas = data.rows.length;
+  const totalDias = data.datesLabel.length;
+  badge.textContent = `${totalLinhas} gruas • ${totalDias} dias`;
+
+  // se veio vazio, pode acontecer por filtro sem hits
+  setLoading(false);
+}
+
+function fetchAndRender(){
+  setLoading(true);
+  const payload = {
+    start: $('start').value || null,
+    end: $('end').value || null,
+    grua: $('grua').value || 'ALL'
+  };
+  $('badge').textContent = 'carregando…';
+  google.script.run.withSuccessHandler(d => {
+    // se inputs estavam vazios, preenche com range completo
+    if ((!$('start').value || !$('end').value) && d.dates && d.dates.length){
+      $('start').value = $('start').value || d.dates[0];
+      $('end').value   = $('end').value   || d.dates[d.dates.length - 1];
+    }
+    render(d);
+  }).fetchGrid(payload);
+}
+
+// CSV do que está na tela
+$('csv').addEventListener('click', () => {
+  if (!lastData) return;
+  const rows = [];
+  rows.push(['GRUA', ...lastData.datesLabel]);
+  lastData.rows.forEach(r => rows.push([r.grua, ...r.values]));
+  rows.push(['Total', ...lastData.totals]);
+
+  const csv = rows.map(line => line.map(x => {
+    if (typeof x === 'number') return x.toString().replace('.', ',');
+    return `"${String(x).replace(/"/g,'""')}"`;
+  }).join(';')).join('\n');
+
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'detalhado-dia-a-dia.csv';
+  a.click();
+});
+
+$('apply').addEventListener('click', fetchAndRender);
+
+// inicialização
+google.script.run.withSuccessHandler(d => {
+  // Pré-preenche inputs com range completo
+  if (d.dates && d.dates.length) {
+    $('start').value = qs.start || d.dates[0];
+    $('end').value   = qs.end   || d.dates[d.dates.length - 1];
+  }
+  render(d);
+  // se veio grua via query string, seta e atualiza
+  if (qs.grua) {
+    const trySet = () => {
+      const opt = Array.from($('grua').options).find(o => o.value.toUpperCase() === qs.grua.toUpperCase());
+      if (opt) { $('grua').value = opt.value; fetchAndRender(); }
+    };
+    // tenta logo; se options ainda não preencheram, tenta depois de um tick
+    trySet(); setTimeout(trySet, 300);
+  }
+}).fetchGrid({});
+</script>
+</body>
+</html>
