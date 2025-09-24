@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="pt-br">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>DETALHADO GERAL – Dia a Dia</title>
 <style>
   :root { --bg:#0e1116; --surface:#121722; --muted:#94a3b8; --txt:#e5e7eb; --accent:#ff8c1a; --danger:#dc2626; }
@@ -11,20 +11,20 @@
   h1{font-size:22px;margin:0 0 16px;}
   .toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
   .toolbar input,.toolbar select,.toolbar button{background:var(--surface);border:1px solid #374151;color:var(--txt);padding:8px 12px;border-radius:6px;font-size:14px;}
-  .toolbar button{background:var(--accent);color:#000;border:0;font-weight:600;cursor:pointer;transition: opacity .2s;}
+  .toolbar button{background:var(--accent);color:#000;border:0;font-weight:600;cursor:pointer;transition:opacity .2s;}
   .toolbar button:hover{opacity:.85;}
-  .badge{font-size:12px;font-weight:600;color:#000;background:var(--accent);padding:4px 10px;border-radius:999px;margin-left:8px;vertical-align:middle;}
-  .badge.error{background:var(--danger);color:white;}
-  .tablewrap{background:var(--surface);border:1px solid #374151;border-radius:12px;overflow:auto;max-height:70vh;}
-  table{border-collapse:collapse;width:100%;}
-  th,td{padding:10px 12px;border-bottom:1px solid #374151;white-space:nowrap;text-align:left;}
-  th{position:sticky;top:0;background:#1f2937;font-weight:600;z-index:10;}
-  th:first-child, td:first-child {position:sticky;left:0;background:#1f2937;width:150px;}
-  td:first-child {background: var(--surface);}
-  tr:hover td, tr:hover td:first-child {background:#2b3445;}
-  .num{text-align:right;}
-  .footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:0 5px;color:var(--muted);font-size:12px;}
-  .status.error{color:var(--danger);font-weight:600;}
+  .badge{font-size:12px;font-weight:700;color:#000;background:var(--accent);padding:4px 10px;border-radius:999px;margin-left:8px}
+  .badge.error{background:var(--danger);color:#fff}
+  .tablewrap{background:var(--surface);border:1px solid #374151;border-radius:12px;overflow:auto;max-height:70vh}
+  table{border-collapse:collapse;width:100%}
+  th,td{padding:10px 12px;border-bottom:1px solid #374151;white-space:nowrap;text-align:left}
+  th{position:sticky;top:0;background:#1f2937;font-weight:600;z-index:10}
+  th:first-child,td:first-child{position:sticky;left:0;background:#1f2937}
+  td:first-child{background:var(--surface)}
+  tr:hover td,tr:hover td:first-child{background:#2b3445}
+  .num{text-align:right}
+  .footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:0 5px;color:var(--muted);font-size:12px}
+  .status.error{color:var(--danger);font-weight:700}
 </style>
 </head>
 <body>
@@ -55,10 +55,8 @@
 </div>
 
 <script>
-// === URL do seu Apps Script (EXEC) ===
-const API_URL = 'https://script.google.com/macros/s/AKfycbxh9qPyC7MT2pfT4EylSmMhVw72jMubaEjWQxtAMW-vTtaExqIEMFSeRk3_FRz2nnIbgg/exec';
+const API_URL = '<?= ScriptApp.getService().getUrl() ?>';
 
-// JSONP simples
 function jsonp(url, params = {}) {
   return new Promise((resolve, reject) => {
     const cb = 'cb_' + Math.random().toString(36).slice(2);
@@ -66,6 +64,7 @@ function jsonp(url, params = {}) {
     const qs = new URLSearchParams(params).toString();
     const script = document.createElement('script');
     const timeout = setTimeout(() => { cleanup(); reject(new Error('Timeout (30s).')); }, 30000);
+
     function cleanup(){ clearTimeout(timeout); script.remove(); delete window[cb]; }
     window[cb] = data => { cleanup(); resolve(data); };
     script.onerror = () => { cleanup(); reject(new Error('Erro de rede/URL.')); };
@@ -78,25 +77,30 @@ const el = id => document.getElementById(id);
 const ui = {
   badge: el('badge'), thead: el('thead'), tbody: el('tbody'),
   status: el('status'), meta: el('meta'), from: el('from'),
-  to: el('to'), grua: el('grua'), btnAtualizar: el('btnAtualizar'),
-  btnCsv: el('btnCsv')
+  to: el('to'), grua: el('grua'), btnAtualizar: el('btnAtualizar'), btnCsv: el('btnCsv')
 };
-function setStatus(t, e=false){ ui.badge.textContent=t; ui.badge.className=e?'badge error':'badge'; ui.status.textContent=e?t:''; ui.status.className=e?'status error':'status'; }
+
+function setStatus(text, isError=false){
+  ui.badge.textContent = text;
+  ui.badge.className = isError ? 'badge error' : 'badge';
+  ui.status.textContent = isError ? text : '';
+  ui.status.className = isError ? 'status error' : 'status';
+}
+
 const fmt = n => (Number(n)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtDate = iso => iso.split('-').reverse().join('/');
 
-function render(data) {
-  const { dates, gruas, rows } = data;
+function render(data){
+  const {dates,gruas,rows} = data;
   setStatus(`${rows.length} gruas · ${dates.length} dias`);
   ui.meta.textContent = dates.length ? `Período: ${fmtDate(dates[0])} a ${fmtDate(dates[dates.length-1])}` : '';
 
-  const currentGrua = ui.grua.value;
-  ui.grua.innerHTML = '<option value="">Todas</option>' + gruas.map(g=>`<option value="${g}">${g}</option>`).join('');
-  ui.grua.value = currentGrua;
+  const cur = ui.grua.value;
+  ui.grua.innerHTML = '<option value="">Todas</option>' + gruas.map(g=>`<option>${g}</option>`).join('');
+  ui.grua.value = cur;
 
-  const header = ['GRUA','LOCAL','TOTAL PERÍODO', ...dates.map(fmtDate)];
+  const header = ['GRUA','LOCAL','TOTAL PERÍODO',...dates.map(fmtDate)];
   ui.thead.innerHTML = `<tr>${header.map((c,i)=>`<th class="${i>1?'num':''}">${c}</th>`).join('')}</tr>`;
-
   ui.tbody.innerHTML = rows.map(r=>{
     const cells = [
       `<td>${r.grua}</td>`,
@@ -109,37 +113,37 @@ function render(data) {
 }
 
 async function loadData(){
-  setStatus('Carregando...');
-  ui.btnAtualizar.disabled = true;
   try{
-    const params = { action:'fetch', hdr:6, fdc:8 };  // <<< fixo
-    if (ui.from.value) params.start = ui.from.value;
-    if (ui.to.value)   params.end   = ui.to.value;
-    if (ui.grua.value) params.grua  = ui.grua.value;
+    setStatus('carregando...');
+    ui.btnAtualizar.disabled = true;
+
+    const params = { action:'fetch' };
+    if(ui.from.value) params.start = ui.from.value;
+    if(ui.to.value)   params.end   = ui.to.value;
+    if(ui.grua.value) params.grua  = ui.grua.value;
 
     const data = await jsonp(API_URL, params);
-    if (!data.ok) throw new Error(data.error || 'Erro no servidor.');
+    if(!data.ok) throw new Error(data.error || 'Erro no servidor.');
     window.__lastData = data;
     render(data);
   }catch(err){
-    setStatus(err.message, true);
     console.error(err);
+    setStatus(err.message,true);
   }finally{
     ui.btnAtualizar.disabled = false;
   }
 }
 
 function exportCsv(){
-  const data = window.__lastData;
-  if (!data || !data.ok) { alert('Atualize primeiro.'); return; }
-  const { dates, rows } = data;
-  const header = ['GRUA','LOCAL','REDE',...dates].join(';');
-  const lines  = rows.map(r => [r.grua,r.local,r.rede,...r.values.map(v=>fmt(v).replace(/\./g,'').replace(',', '.'))].join(';'));
-  const csv = [header, ...lines].join('\n');
+  const d = window.__lastData;
+  if(!d || !d.ok){ alert('Atualize antes de exportar.'); return; }
+  const header = ['GRUA','LOCAL','REDE',...d.dates].join(';');
+  const lines = d.rows.map(r=>[r.grua,r.local,(r.rede||''),...r.values.map(v=>String(v).replace('.',','))].join(';'));
+  const csv = [header,...lines].join('\n');
   const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `detalhado_${dates[0]}_a_${dates[dates.length-1]}.csv`;
+  a.download = `detalhado_${d.dates[0]}_a_${d.dates[d.dates.length-1]}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -147,12 +151,12 @@ function exportCsv(){
 ui.btnAtualizar.addEventListener('click', loadData);
 ui.btnCsv.addEventListener('click', exportCsv);
 
-// defaults: mês corrente
 (function init(){
-  const now=new Date(), y=now.getFullYear(), m=now.getMonth(), pad=n=>String(n).padStart(2,'0');
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const pad = n => String(n).padStart(2,'0');
   ui.from.value = `${y}-${pad(m+1)}-01`;
-  const lastDay = new Date(y,m+1,0).getDate();
-  ui.to.value   = `${y}-${pad(m+1)}-${pad(lastDay)}`;
+  ui.to.value   = `${y}-${pad(m+1)}-${pad(new Date(y,m+1,0).getDate())}`;
   loadData();
 })();
 </script>
