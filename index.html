@@ -63,7 +63,7 @@ function jsonp(url, params={}) {
     const qs = new URLSearchParams(params).toString();
     const s = document.createElement('script');
     const timeout = setTimeout(()=>{
-      cleanup(); reject(new Error('Timeout ao chamar API'));
+      cleanup(); reject(new Error('Timeout ao chamar API (15s)'));
     }, 15000);
     function cleanup(){
       clearTimeout(timeout);
@@ -71,7 +71,7 @@ function jsonp(url, params={}) {
       try{ delete window[cb] }catch(_){}
     }
     window[cb] = (data)=>{ cleanup(); resolve(data); };
-    s.onerror = ()=>{ cleanup(); reject(new Error('Falha ao carregar API')); };
+    s.onerror = ()=>{ cleanup(); reject(new Error('Falha de rede ao carregar API')); };
     s.src = url + '?' + qs;
     document.body.appendChild(s);
   });
@@ -81,43 +81,57 @@ function jsonp(url, params={}) {
 const el = (id)=>document.getElementById(id);
 const badge = el('badge'), thead = el('thead'), tbody = el('tbody'), statusEl = el('status'), metaEl = el('meta');
 
-function setBadge(t){ badge.textContent = t; }
+function setBadge(t, isError=false){ 
+    badge.textContent = t; 
+    badge.style.background = isError ? '#dc2626' : 'var(--accent)';
+    badge.style.color = isError ? 'white' : 'black';
+}
 function fmt(n){ return (Number(n)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
 function render(data){
-  if(!data || !data.ok){ setBadge('erro'); statusEl.textContent = data && data.error ? data.error : 'Erro'; return; }
-  const {meta, rows} = data;
-  setBadge(`${rows.length} gruas · ${meta.dates.length} dias`);
+  if(!data || !data.ok){ setBadge(data.error || 'Erro desconhecido', true); statusEl.textContent = data && data.error ? data.error : 'Erro'; return; }
+  const { datesLabel, gruas, rows } = data;
+  setBadge(`${rows.length} gruas · ${datesLabel.length} dias`);
   statusEl.textContent = '';
-  metaEl.textContent = `Período ${meta.from} → ${meta.to}`;
-
-  // cabeça
-  const cols = ['GRUA', ...meta.dates, 'TOTAL'];
-  thead.innerHTML = '<tr>' + cols.map((c,i)=>`<th class="${i? 'num':''}">${c}</th>`).join('') + '</tr>';
-
-  // corpo
-  tbody.innerHTML = rows.map(r=>{
-    const tds = [`<td>${r.grua}</td>`]
-      .concat(r.values.map(v=>`<td class="num">${fmt(v)}</td>`))
-      .concat([`<td class="num">${fmt(r.total)}</td>`]);
-    return `<tr>${tds.join('')}</tr>`;
-  }).join('');
-
-  // popula combo de grua
+  
+  // Popula o seletor de gruas
   const gSel = el('grua');
-  const current = gSel.value;
-  gSel.innerHTML = '<option value="">Todas</option>' + meta.gruas
+  const currentGrua = gSel.value;
+  gSel.innerHTML = '<option value="">Todas</option>' + gruas
     .map(g=>`<option value="${g}">${g}</option>`).join('');
-  if (current) gSel.value = current; // preserva seleção
+  gSel.value = currentGrua; 
+
+  // Cabeçalho da tabela
+  const headerCols = ['GRUA', 'REDE', 'LOCAL', 'TOTAL', 'ESTORNOS', 'BRINDES', 'P/ ANDAR', 'CUSTO DIA', 'TOTAL PERÍODO', ...datesLabel];
+  thead.innerHTML = '<tr>' + headerCols.map((c,i)=>`<th class="${i > 1 ? 'num':''}">${c}</th>`).join('') + '</tr>';
+
+  // Corpo da tabela
+  tbody.innerHTML = rows.map(r=>{
+    const cells = [
+        `<td>${r.grua}</td>`,
+        `<td>${r.rede}</td>`,
+        `<td>${r.local}</td>`,
+        `<td class="num">${fmt(r.total)}</td>`,
+        `<td class="num">${fmt(r.estornos)}</td>`,
+        `<td class="num">${fmt(r.brindes)}</td>`,
+        `<td class="num">${fmt(r.porAndar)}</td>`,
+        `<td class="num">${fmt(r.custoDiario)}</td>`,
+        `<td class="num"><b>${fmt(r.totalPeriodo)}</b></td>`,
+        ...r.values.map(v=>`<td class="num">${v > 0 ? fmt(v) : ''}</td>`)
+    ];
+    return `<tr>${cells.join('')}</tr>`;
+  }).join('');
 }
+
 
 /* ---------------- CSV ---------------- */
 function toCsv(data){
-  const {meta, rows} = data;
-  const head = ['GRUA', ...meta.dates, 'TOTAL'];
+  const { dates, rows } = data;
+  const head = ['GRUA', 'REDE', 'LOCAL', ...dates];
   const lines = [head.join(';')];
   rows.forEach(r=>{
-    lines.push([r.grua, ...r.values.map(v=>fmt(v)), fmt(r.total)].join(';'));
+    const lineData = [r.grua, r.rede, r.local, ...r.values.map(v=>fmt(v).replace('.',','))];
+    lines.push(lineData.join(';'));
   });
   return lines.join('\n');
 }
@@ -134,16 +148,17 @@ function download(name, content){
 async function load(){
   setBadge('carregando...');
   try {
-    const params = {};
+    const params = { action: 'fetch' }; // <-- Ponto chave: informa a API que queremos dados
     const f = el('from').value, t = el('to').value, g = el('grua').value;
-    if (f) params.from = f;
-    if (t) params.to = t;
+    if (f) params.start = f;
+    if (t) params.end = t;
     if (g) params.grua = g;
+    
     const data = await jsonp(API_URL, params);
     window.__lastData = data; // guarda p/ CSV
     render(data);
   } catch (err) {
-    setBadge('erro');
+    setBadge(err.message || String(err), true);
     statusEl.textContent = err.message || String(err);
   }
 }
@@ -151,8 +166,8 @@ async function load(){
 el('btnAtualizar').addEventListener('click', load);
 el('btnCsv').addEventListener('click', ()=>{
   if (!window.__lastData || !window.__lastData.ok) return;
-  const {meta} = window.__lastData;
-  download(`detalhado_${meta.from}_a_${meta.to}.csv`, toCsv(window.__lastData));
+  const { dates } = window.__lastData;
+  download(`detalhado_${dates[0]}_a_${dates[dates.length - 1]}.csv`, toCsv(window.__lastData));
 });
 
 // datas padrão: mês atual
