@@ -5,26 +5,31 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>DETALHADO GERAL – Dia a Dia</title>
 <style>
-  :root { --bg:#0e1116; --surface:#121722; --muted:#94a3b8; --txt:#e5e7eb; --accent:#ff8c1a; }
+  :root { --bg:#0e1116; --surface:#121722; --muted:#94a3b8; --txt:#e5e7eb; --accent:#ff8c1a; --danger: #dc2626; }
   html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto;}
-  .wrap{max-width:1200px;margin:24px auto;padding:0 16px;}
+  .wrap{max-width:95%;margin:24px auto;padding:0 16px;}
   h1{font-size:22px;margin:0 0 16px;}
-  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
-  .toolbar input,.toolbar select,.toolbar button{background:var(--surface);border:1px solid #1f2937;color:var(--txt);padding:8px 10px;border-radius:8px}
-  .toolbar button{background:var(--accent);color:#000;border:0;font-weight:600;cursor:pointer}
-  .badge{font-size:12px;color:#000;background:var(--accent);padding:4px 8px;border-radius:999px;margin-left:8px}
-  .tablewrap{background:var(--surface);border:1px solid #1f2937;border-radius:12px;overflow:auto}
-  table{border-collapse:collapse;width:100%;min-width:900px}
-  th,td{padding:8px 10px;border-bottom:1px solid #1f2937;white-space:nowrap}
-  th{position:sticky;top:0;background:#0f1520;font-weight:700}
-  td.num,th.num{text-align:right}
-  tr:hover td{background:#0f1520}
-  .footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px;color:var(--muted)}
+  .toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
+  .toolbar input,.toolbar select,.toolbar button{background:var(--surface);border:1px solid #374151;color:var(--txt);padding:8px 12px;border-radius:6px;font-size:14px;}
+  .toolbar button{background:var(--accent);color:#000;border:0;font-weight:600;cursor:pointer;transition: opacity 0.2s;}
+  .toolbar button:hover{opacity: 0.85;}
+  .badge{font-size:12px;font-weight:600;color:#000;background:var(--accent);padding:4px 10px;border-radius:999px;margin-left:8px;vertical-align:middle;}
+  .badge.error{background:var(--danger);color:white;}
+  .tablewrap{background:var(--surface);border:1px solid #374151;border-radius:12px;overflow:auto;max-height: 70vh;}
+  table{border-collapse:collapse;width:100%;}
+  th,td{padding:10px 12px;border-bottom:1px solid #374151;white-space:nowrap;text-align:left;}
+  th{position:sticky;top:0;background:#1f2937;font-weight:600;z-index:10;}
+  th:first-child, td:first-child {position:sticky;left:0;background:#1f2937;width:150px;}
+  td:first-child {background: var(--surface);}
+  tr:hover td, tr:hover td:first-child {background:#2b3445;}
+  .num{text-align:right;}
+  .footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding: 0 5px;color:var(--muted);font-size:12px;}
+  .status.error{color:var(--danger);font-weight:600;}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>DETALHADO GERAL – Dia a Dia <span id="badge" class="badge">carregando…</span></h1>
+  <h1>DETALHADO GERAL – Dia a Dia <span id="badge" class="badge"></span></h1>
 
   <div class="toolbar">
     <label>De: <input type="date" id="from"></label>
@@ -47,142 +52,144 @@
 
   <div class="footer">
     <div id="meta"></div>
-    <div id="status"></div>
+    <div id="status" class="status"></div>
   </div>
 </div>
 
 <script>
-/** COLOQUE AQUI SUA URL DO WEB APP ( /exec ) **/
-const API_URL = 'https://script.google.com/macros/s/AKfycbzdm0EV1ekSHJip7Jn02-1L-iKdV4aRP_MhPgCj75H9MguTlFxUF5b0OFfVowTVMxlGHg/exec';
+const API_URL = '<?= ScriptApp.getService().getUrl() ?>';
 
-/* ---------------- JSONP ---------------- */
-function jsonp(url, params={}) {
-  return new Promise((resolve,reject)=>{
+// Função para buscar dados com JSONP
+function jsonp(url, params = {}) {
+  return new Promise((resolve, reject) => {
     const cb = 'cb_' + Math.random().toString(36).slice(2);
     params.callback = cb;
     const qs = new URLSearchParams(params).toString();
-    const s = document.createElement('script');
-    const timeout = setTimeout(()=>{
-      cleanup(); reject(new Error('Timeout ao chamar API (15s)'));
-    }, 15000);
-    function cleanup(){
+    const script = document.createElement('script');
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Timeout: A requisição demorou mais de 30 segundos.'));
+    }, 30000);
+
+    function cleanup() {
       clearTimeout(timeout);
-      s.remove();
-      try{ delete window[cb] }catch(_){}
+      script.remove();
+      delete window[cb];
     }
-    window[cb] = (data)=>{ cleanup(); resolve(data); };
-    s.onerror = ()=>{ cleanup(); reject(new Error('Falha de rede ao carregar API')); };
-    s.src = url + '?' + qs;
-    document.body.appendChild(s);
+
+    window[cb] = (data) => {
+      cleanup();
+      resolve(data);
+    };
+    script.onerror = () => {
+      cleanup();
+      reject(new Error('Erro de rede ou URL do Web App incorreta.'));
+    };
+
+    script.src = url + '?' + qs;
+    document.head.appendChild(script);
   });
 }
 
-/* ---------------- RENDER ---------------- */
-const el = (id)=>document.getElementById(id);
-const badge = el('badge'), thead = el('thead'), tbody = el('tbody'), statusEl = el('status'), metaEl = el('meta');
+// Elementos da UI
+const el = (id) => document.getElementById(id);
+const ui = {
+  badge: el('badge'), thead: el('thead'), tbody: el('tbody'),
+  status: el('status'), meta: el('meta'), from: el('from'),
+  to: el('to'), grua: el('grua'), btnAtualizar: el('btnAtualizar'),
+  btnCsv: el('btnCsv')
+};
 
-function setBadge(t, isError=false){ 
-    badge.textContent = t; 
-    badge.style.background = isError ? '#dc2626' : 'var(--accent)';
-    badge.style.color = isError ? 'white' : 'black';
+function setStatus(text, isError = false) {
+  ui.badge.textContent = text;
+  ui.badge.className = isError ? 'badge error' : 'badge';
+  ui.status.textContent = isError ? text : '';
+  ui.status.className = isError ? 'status error' : 'status';
 }
-function fmt(n){ return (Number(n)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
-function render(data){
-  if(!data || !data.ok){ setBadge(data.error || 'Erro desconhecido', true); statusEl.textContent = data && data.error ? data.error : 'Erro'; return; }
-  const { datesLabel, gruas, rows } = data;
-  setBadge(`${rows.length} gruas · ${datesLabel.length} dias`);
-  statusEl.textContent = '';
-  
-  // Popula o seletor de gruas
-  const gSel = el('grua');
-  const currentGrua = gSel.value;
-  gSel.innerHTML = '<option value="">Todas</option>' + gruas
-    .map(g=>`<option value="${g}">${g}</option>`).join('');
-  gSel.value = currentGrua; 
+const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtDate = (iso) => iso.split('-').reverse().join('/');
 
-  // Cabeçalho da tabela
-  const headerCols = ['GRUA', 'REDE', 'LOCAL', 'TOTAL', 'ESTORNOS', 'BRINDES', 'P/ ANDAR', 'CUSTO DIA', 'TOTAL PERÍODO', ...datesLabel];
-  thead.innerHTML = '<tr>' + headerCols.map((c,i)=>`<th class="${i > 1 ? 'num':''}">${c}</th>`).join('') + '</tr>';
+function render(data) {
+  const { dates, gruas, rows } = data;
+  setStatus(`${rows.length} gruas · ${dates.length} dias`);
+  ui.meta.textContent = dates.length ? `Período: ${fmtDate(dates[0])} a ${fmtDate(dates[dates.length - 1])}` : 'Nenhum período selecionado';
 
-  // Corpo da tabela
-  tbody.innerHTML = rows.map(r=>{
+  const currentGrua = ui.grua.value;
+  ui.grua.innerHTML = '<option value="">Todas</option>' + gruas.map(g => `<option value="${g}">${g}</option>`).join('');
+  ui.grua.value = currentGrua;
+
+  const headerCols = ['GRUA', 'LOCAL', 'TOTAL PERÍODO', ...dates.map(fmtDate)];
+  ui.thead.innerHTML = `<tr>${headerCols.map((c, i) => `<th class="${i > 1 ? 'num' : ''}">${c}</th>`).join('')}</tr>`;
+
+  ui.tbody.innerHTML = rows.map(r => {
     const cells = [
-        `<td>${r.grua}</td>`,
-        `<td>${r.rede}</td>`,
-        `<td>${r.local}</td>`,
-        `<td class="num">${fmt(r.total)}</td>`,
-        `<td class="num">${fmt(r.estornos)}</td>`,
-        `<td class="num">${fmt(r.brindes)}</td>`,
-        `<td class="num">${fmt(r.porAndar)}</td>`,
-        `<td class="num">${fmt(r.custoDiario)}</td>`,
-        `<td class="num"><b>${fmt(r.totalPeriodo)}</b></td>`,
-        ...r.values.map(v=>`<td class="num">${v > 0 ? fmt(v) : ''}</td>`)
+      `<td>${r.grua}</td>`,
+      `<td>${r.local}</td>`,
+      `<td class="num"><b>${fmt(r.totalPeriodo)}</b></td>`,
+      ...r.values.map(v => `<td class="num">${v > 0 ? fmt(v) : ''}</td>`)
     ];
     return `<tr>${cells.join('')}</tr>`;
   }).join('');
 }
 
+async function loadData() {
+  setStatus('Carregando...');
+  ui.btnAtualizar.disabled = true;
+  try {
+    const params = { action: 'fetch' };
+    if (ui.from.value) params.start = ui.from.value;
+    if (ui.to.value) params.end = ui.to.value;
+    if (ui.grua.value) params.grua = ui.grua.value;
 
-/* ---------------- CSV ---------------- */
-function toCsv(data){
-  const { dates, rows } = data;
-  const head = ['GRUA', 'REDE', 'LOCAL', ...dates];
-  const lines = [head.join(';')];
-  rows.forEach(r=>{
-    const lineData = [r.grua, r.rede, r.local, ...r.values.map(v=>fmt(v).replace('.',','))];
-    lines.push(lineData.join(';'));
-  });
-  return lines.join('\n');
+    const data = await jsonp(API_URL, params);
+    if (!data.ok) throw new Error(data.error || 'Erro desconhecido no servidor.');
+    
+    window.__lastData = data;
+    render(data);
+  } catch (err) {
+    setStatus(err.message, true);
+    console.error(err);
+  } finally {
+    ui.btnAtualizar.disabled = false;
+  }
 }
-function download(name, content){
-  const blob = new Blob([content], {type:'text/csv;charset=utf-8;'});
+
+function exportCsv() {
+  const data = window.__lastData;
+  if (!data || !data.ok) {
+    alert('Não há dados para exportar. Por favor, atualize primeiro.');
+    return;
+  }
+  const { dates, rows } = data;
+  const header = ['GRUA', 'LOCAL', 'REDE', ...dates].join(';');
+  const lines = rows.map(r => 
+    [r.grua, r.local, r.rede, ...r.values.map(v => fmt(v).replace(/\./g, '').replace(',', '.'))].join(';')
+  );
+  const csvContent = [header, ...lines].join('\n');
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = name;
+  a.download = `detalhado_${dates[0]}_a_${dates[dates.length-1]}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
 
-/* ---------------- UI ---------------- */
-async function load(){
-  setBadge('carregando...');
-  try {
-    const params = { action: 'fetch' }; // <-- Ponto chave: informa a API que queremos dados
-    const f = el('from').value, t = el('to').value, g = el('grua').value;
-    if (f) params.start = f;
-    if (t) params.end = t;
-    if (g) params.grua = g;
-    
-    const data = await jsonp(API_URL, params);
-    window.__lastData = data; // guarda p/ CSV
-    render(data);
-  } catch (err) {
-    setBadge(err.message || String(err), true);
-    statusEl.textContent = err.message || String(err);
-  }
-}
+// Configuração Inicial
+ui.btnAtualizar.addEventListener('click', loadData);
+ui.btnCsv.addEventListener('click', exportCsv);
 
-el('btnAtualizar').addEventListener('click', load);
-el('btnCsv').addEventListener('click', ()=>{
-  if (!window.__lastData || !window.__lastData.ok) return;
-  const { dates } = window.__lastData;
-  download(`detalhado_${dates[0]}_a_${dates[dates.length - 1]}.csv`, toCsv(window.__lastData));
-});
-
-// datas padrão: mês atual
-(function initDates(){
+(function init() {
   const now = new Date();
   const y = now.getFullYear(), m = now.getMonth();
-  const pad = n=>String(n).padStart(2,'0');
-  const first = `${y}-${pad(m+1)}-01`;
-  const last = new Date(y, m+1, 0);
-  const lastStr = `${y}-${pad(m+1)}-${pad(last.getDate())}`;
-  el('from').value = first;
-  el('to').value = lastStr;
+  const pad = n => String(n).padStart(2, '0');
+  ui.from.value = `${y}-${pad(m + 1)}-01`;
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  ui.to.value = `${y}-${pad(m + 1)}-${pad(lastDay)}`;
+  
+  loadData();
 })();
-
-load();
 </script>
 </body>
 </html>
