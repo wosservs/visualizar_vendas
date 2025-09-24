@@ -1,31 +1,31 @@
 <!doctype html>
 <html lang="pt-br">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DETALHADO GERAL – Dia a Dia</title>
-<style>
-  :root { --bg:#0e1116; --surface:#121722; --muted:#94a3b8; --txt:#e5e7eb; --accent:#ff8c1a; --danger:#dc2626; }
-  html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto;}
-  .wrap{max-width:95%;margin:24px auto;padding:0 16px;}
-  h1{font-size:22px;margin:0 0 16px;}
-  .toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
-  .toolbar input,.toolbar select,.toolbar button{background:var(--surface);border:1px solid #374151;color:var(--txt);padding:8px 12px;border-radius:6px;font-size:14px;}
-  .toolbar button{background:var(--accent);color:#000;border:0;font-weight:600;cursor:pointer;transition:opacity .2s;}
-  .toolbar button:hover{opacity:.85;}
-  .badge{font-size:12px;font-weight:700;color:#000;background:var(--accent);padding:4px 10px;border-radius:999px;margin-left:8px}
-  .badge.error{background:var(--danger);color:#fff}
-  .tablewrap{background:var(--surface);border:1px solid #374151;border-radius:12px;overflow:auto;max-height:70vh}
-  table{border-collapse:collapse;width:100%}
-  th,td{padding:10px 12px;border-bottom:1px solid #374151;white-space:nowrap;text-align:left}
-  th{position:sticky;top:0;background:#1f2937;font-weight:600;z-index:10}
-  th:first-child,td:first-child{position:sticky;left:0;background:#1f2937}
-  td:first-child{background:var(--surface)}
-  tr:hover td,tr:hover td:first-child{background:#2b3445}
-  .num{text-align:right}
-  .footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:0 5px;color:var(--muted);font-size:12px}
-  .status.error{color:var(--danger);font-weight:700}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DETALHADO GERAL – Dia a Dia</title>
+  <style>
+    :root{--bg:#0e1116;--surface:#121722;--muted:#94a3b8;--txt:#e5e7eb;--accent:#ff8c1a;--danger:#dc2626}
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto}
+    .wrap{max-width:95%;margin:24px auto;padding:0 16px}
+    h1{font-size:22px;margin:0 0 16px}
+    .toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+    .toolbar input,.toolbar select,.toolbar button{background:var(--surface);border:1px solid #374151;color:var(--txt);padding:8px 12px;border-radius:6px;font-size:14px}
+    .toolbar button{background:var(--accent);color:#000;border:0;font-weight:600;cursor:pointer;transition:opacity .2s}
+    .toolbar button:hover{opacity:.85}
+    .badge{font-size:12px;font-weight:600;color:#000;background:var(--accent);padding:4px 10px;border-radius:999px;margin-left:8px;vertical-align:middle}
+    .badge.error{background:var(--danger);color:#fff}
+    .tablewrap{background:var(--surface);border:1px solid #374151;border-radius:12px;overflow:auto;max-height:70vh}
+    table{border-collapse:collapse;width:100%}
+    th,td{padding:10px 12px;border-bottom:1px solid #374151;white-space:nowrap;text-align:left}
+    th{position:sticky;top:0;background:#1f2937;font-weight:600;z-index:10}
+    th:first-child,td:first-child{position:sticky;left:0;background:#1f2937}
+    td:first-child{background:var(--surface)}
+    tr:hover td,tr:hover td:first-child{background:#2b3445}
+    .num{text-align:right}
+    .footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:0 5px;color:var(--muted);font-size:12px}
+    .status.error{color:var(--danger);font-weight:600}
+  </style>
 </head>
 <body>
 <div class="wrap">
@@ -63,10 +63,9 @@ function jsonp(url, params = {}) {
     params.callback = cb;
     const qs = new URLSearchParams(params).toString();
     const script = document.createElement('script');
-    const timeout = setTimeout(() => { cleanup(); reject(new Error('Timeout (30s).')); }, 30000);
-
+    const timeout = setTimeout(() => { cleanup(); reject(new Error('Timeout de 30s.')); }, 30000);
     function cleanup(){ clearTimeout(timeout); script.remove(); delete window[cb]; }
-    window[cb] = data => { cleanup(); resolve(data); };
+    window[cb] = (data) => { cleanup(); resolve(data); };
     script.onerror = () => { cleanup(); reject(new Error('Erro de rede/URL.')); };
     script.src = url + '?' + qs;
     document.head.appendChild(script);
@@ -76,35 +75,36 @@ function jsonp(url, params = {}) {
 const el = id => document.getElementById(id);
 const ui = {
   badge: el('badge'), thead: el('thead'), tbody: el('tbody'),
-  status: el('status'), meta: el('meta'), from: el('from'),
-  to: el('to'), grua: el('grua'), btnAtualizar: el('btnAtualizar'), btnCsv: el('btnCsv')
+  status: el('status'), meta: el('meta'),
+  from: el('from'), to: el('to'), grua: el('grua'),
+  btnAtualizar: el('btnAtualizar'), btnCsv: el('btnCsv')
 };
 
-function setStatus(text, isError=false){
-  ui.badge.textContent = text;
-  ui.badge.className = isError ? 'badge error' : 'badge';
-  ui.status.textContent = isError ? text : '';
-  ui.status.className = isError ? 'status error' : 'status';
+function setStatus(t, err=false){
+  ui.badge.textContent = t;
+  ui.badge.className = err ? 'badge error' : 'badge';
+  ui.status.textContent = err ? t : '';
+  ui.status.className = err ? 'status error' : 'status';
 }
-
 const fmt = n => (Number(n)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtDate = iso => iso.split('-').reverse().join('/');
 
 function render(data){
-  const {dates,gruas,rows} = data;
+  const { dates, gruas, rows } = data;
   setStatus(`${rows.length} gruas · ${dates.length} dias`);
   ui.meta.textContent = dates.length ? `Período: ${fmtDate(dates[0])} a ${fmtDate(dates[dates.length-1])}` : '';
 
-  const cur = ui.grua.value;
-  ui.grua.innerHTML = '<option value="">Todas</option>' + gruas.map(g=>`<option>${g}</option>`).join('');
-  ui.grua.value = cur;
+  const current = ui.grua.value;
+  ui.grua.innerHTML = '<option value="">Todas</option>' + gruas.map(g=>`<option value="${g}">${g}</option>`).join('');
+  ui.grua.value = current;
 
   const header = ['GRUA','LOCAL','TOTAL PERÍODO',...dates.map(fmtDate)];
   ui.thead.innerHTML = `<tr>${header.map((c,i)=>`<th class="${i>1?'num':''}">${c}</th>`).join('')}</tr>`;
+
   ui.tbody.innerHTML = rows.map(r=>{
     const cells = [
       `<td>${r.grua}</td>`,
-      `<td>${r.local}</td>`,
+      `<td>${r.local||''}</td>`,
       `<td class="num"><b>${fmt(r.totalPeriodo)}</b></td>`,
       ...r.values.map(v=>`<td class="num">${v>0?fmt(v):''}</td>`)
     ];
@@ -113,22 +113,21 @@ function render(data){
 }
 
 async function loadData(){
+  setStatus('Carregando...');
+  ui.btnAtualizar.disabled = true;
   try{
-    setStatus('carregando...');
-    ui.btnAtualizar.disabled = true;
-
     const params = { action:'fetch' };
-    if(ui.from.value) params.start = ui.from.value;
-    if(ui.to.value)   params.end   = ui.to.value;
-    if(ui.grua.value) params.grua  = ui.grua.value;
+    if (ui.from.value) params.start = ui.from.value;
+    if (ui.to.value)   params.end   = ui.to.value;
+    if (ui.grua.value) params.grua  = ui.grua.value;
 
-    const data = await jsonp(API_URL, params);
-    if(!data.ok) throw new Error(data.error || 'Erro no servidor.');
-    window.__lastData = data;
-    render(data);
+    const resp = await jsonp(API_URL, params);
+    if (!resp.ok) throw new Error(resp.error || 'Erro desconhecido.');
+    window.__lastData = resp;
+    render(resp);
   }catch(err){
     console.error(err);
-    setStatus(err.message,true);
+    setStatus(err.message, true);
   }finally{
     ui.btnAtualizar.disabled = false;
   }
@@ -136,11 +135,10 @@ async function loadData(){
 
 function exportCsv(){
   const d = window.__lastData;
-  if(!d || !d.ok){ alert('Atualize antes de exportar.'); return; }
+  if (!d || !d.ok) { alert('Atualize primeiro.'); return; }
   const header = ['GRUA','LOCAL','REDE',...d.dates].join(';');
-  const lines = d.rows.map(r=>[r.grua,r.local,(r.rede||''),...r.values.map(v=>String(v).replace('.',','))].join(';'));
-  const csv = [header,...lines].join('\n');
-  const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const lines = d.rows.map(r => [r.grua, r.local||'', r.rede||'', ...r.values.map(v => (Number(v)||0).toString().replace('.',','))].join(';'));
+  const blob = new Blob([header+'\n'+lines.join('\n')], {type:'text/csv;charset=utf-8;'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `detalhado_${d.dates[0]}_a_${d.dates[d.dates.length-1]}.csv`;
